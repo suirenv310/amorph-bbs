@@ -13,7 +13,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   // Check ownership or admin
   const { data: room } = await supabaseAdmin
-    .from('rooms').select('created_by, is_protected').eq('id', id).single()
+    .from('rooms').select('created_by, is_protected, name').eq('id', id).single()
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
 
   const isOwner = room.created_by === session.id
@@ -80,7 +80,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
   const { id } = params
   const { data: room } = await supabaseAdmin
-    .from('rooms').select('created_by, is_protected').eq('id', id).single()
+    .from('rooms').select('created_by, is_protected, name').eq('id', id).single()
 
   if (!room)              return NextResponse.json({ error: 'Not found'   }, { status: 404 })
   if (room.is_protected)  return NextResponse.json({ error: 'Protected'   }, { status: 400 })
@@ -98,7 +98,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     actor_name:     session.username,
     target_type:    'room',
     target_id:      id,
-    target_preview: room.name ?? '',
+    target_preview: (room as any).name ?? '',
   })
 
   return NextResponse.json({ ok: true })
