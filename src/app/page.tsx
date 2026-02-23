@@ -675,7 +675,7 @@ export default function Home() {
                     <textarea value={chatInput} onChange={e=>setChatInput(e.target.value)}
                       onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()} }}
                       placeholder="Message... (Enter to send)"
-                      style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'8px 12px', resize:'none', outline:'none', minHeight:38, maxHeight:90 }} />
+                      style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'8px 12px', resize:'none', outline:'none', minHeight:38, maxHeight:90 }} />
                     <button onClick={sendMessage} className="btn-primary" style={{ alignSelf:'flex-end', padding:'8px 15px' }}>SEND</button>
                   </>
                 ) : (
@@ -856,7 +856,7 @@ export default function Home() {
                     )}
                   </div>
                   <textarea value={replyInput} onChange={e=>setReplyInput(e.target.value)} placeholder="Write your reply..."
-                    style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'8px 11px', resize:'vertical', outline:'none', minHeight:65, display:'block', marginBottom:8 }} />
+                    style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'8px 11px', resize:'vertical', outline:'none', minHeight:65, display:'block', marginBottom:8 }} />
                   {/* Media preview */}
                   {rpMediaUrls.length>0 && (
                     <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
@@ -1160,8 +1160,8 @@ export default function Home() {
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>TITLE</label>
             <input value={ntTitle} onChange={e=>setNtTitle(e.target.value)} className="input-base" placeholder="Thread title..." style={{ display:'block', marginBottom:10 }} />
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>CONTENT</label>
-            <textarea value={ntBody} onChange={e=>setNtBody(e.target.value)} placeholder="What's on your mind..." style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'9px 12px', resize:'vertical', outline:'none', minHeight:90, display:'block', marginBottom:10 }} />
-            <select value={ntTag} onChange={e=>setNtTag(e.target.value as any)} style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'9px 12px', outline:'none', marginBottom:10 }}>
+            <textarea value={ntBody} onChange={e=>setNtBody(e.target.value)} placeholder="What's on your mind..." style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'9px 12px', resize:'vertical', outline:'none', minHeight:90, display:'block', marginBottom:10 }} />
+            <select value={ntTag} onChange={e=>setNtTag(e.target.value as any)} style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'9px 12px', outline:'none', marginBottom:10 }}>
               <option value="new">NEW</option>
               <option value="discussion">DISCUSSION</option>
               <option value="hot">HOT</option>

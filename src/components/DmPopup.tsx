@@ -130,14 +130,39 @@ function DmWindow({ window: w, onClose, onMinimize, onSend }: {
               const isMine = m.sender_id === user?.id
               return (
                 <div key={m.id} style={{
-                  display: 'flex', flexDirection: isMine ? 'row-reverse' : 'row',
+                  display: 'flex',
+                  flexDirection: isMine ? 'row-reverse' : 'row',
                   gap: 6, alignItems: 'flex-end',
+                  marginLeft:  isMine ? '20%' : 0,
+                  marginRight: isMine ? 0 : '20%',
                 }}>
+                  {/* Avatar chấm nhỏ */}
                   <div style={{
-                    maxWidth: '78%', padding: '6px 9px',
-                    background: isMine ? 'rgba(0,212,255,.12)' : 'var(--panel2)',
-                    border: `1px solid ${isMine ? 'var(--borderB)' : 'var(--border)'}`,
+                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                    background: isMine ? 'var(--cyan)' : 'var(--borderB)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 8, fontWeight: 900, color: '#000',
+                    fontFamily: "'Orbitron', monospace",
+                    overflow: 'hidden', alignSelf: 'flex-end', marginBottom: 2,
                   }}>
+                    {isMine
+                      ? (user?.username?.[0] ?? '?').toUpperCase()
+                      : w.partner.username[0].toUpperCase()
+                    }
+                  </div>
+                  <div style={{
+                    maxWidth: '100%', padding: '6px 9px',
+                    background: isMine ? 'rgba(0,212,255,.13)' : 'rgba(255,255,255,.04)',
+                    border: `1px solid ${isMine ? 'rgba(0,212,255,.4)' : 'rgba(255,255,255,.08)'}`,
+                    borderRadius: isMine ? '8px 8px 2px 8px' : '8px 8px 8px 2px',
+                  }}>
+                    <div style={{
+                      fontSize: 9, fontFamily: "'Share Tech Mono', monospace",
+                      color: isMine ? 'var(--cyan)' : 'var(--textDim)',
+                      marginBottom: 3, letterSpacing: 0.5,
+                    }}>
+                      {isMine ? 'YOU' : w.partner.username.toUpperCase()}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5, wordBreak: 'break-word' }}>{m.content}</div>
                     <div style={{ fontSize: 9, color: 'var(--textMuted)', fontFamily: "'Share Tech Mono', monospace", marginTop: 3, textAlign: isMine ? 'right' : 'left' }}>
                       {new Date(m.created_at).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' })}
@@ -158,7 +183,7 @@ function DmWindow({ window: w, onClose, onMinimize, onSend }: {
               placeholder="Message..."
               style={{
                 flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)',
-                color: 'var(--white)', fontFamily: 'Rajdhani, sans-serif', fontSize: 12,
+                color: 'var(--white)', fontFamily: 'Exo 2, sans-serif', fontSize: 12,
                 padding: '5px 8px', outline: 'none',
               }}
             />
