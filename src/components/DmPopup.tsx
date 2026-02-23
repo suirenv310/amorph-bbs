@@ -127,7 +127,7 @@ function DmWindow({ window: w, onClose, onMinimize, onSend }: {
               </div>
             )}
             {w.messages.map((m: any) => {
-              const isMine = m.sender_id === user?.id
+              const isMine = (m.sender?.id ?? m.sender_id) === user?.id
               return (
                 <div key={m.id} style={{
                   display: 'flex',
@@ -183,7 +183,7 @@ function DmWindow({ window: w, onClose, onMinimize, onSend }: {
               placeholder="Message..."
               style={{
                 flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)',
-                color: 'var(--white)', fontFamily: 'Exo 2, sans-serif', fontSize: 12,
+                color: 'var(--white)', fontFamily: 'Rajdhani, sans-serif', fontSize: 12,
                 padding: '5px 8px', outline: 'none',
               }}
             />

@@ -41,12 +41,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
+  const ACTIVE_PROFILE_KEY = 'amorph_active_profile_id'
+
   const fetchProfilesFor = useCallback(async (userId?: string) => {
     const r = await fetch('/api/profiles')
     if (!r.ok) return
     const { profiles } = await r.json()
     setProfiles(profiles || [])
-    const def = (profiles || []).find((p: Profile) => p.is_default) || profiles?.[0] || null
+
+    // Ưu tiên: saved in localStorage → is_default → first
+    const savedId = localStorage.getItem(ACTIVE_PROFILE_KEY)
+    const saved   = savedId ? (profiles || []).find((p: Profile) => p.id === savedId) : null
+    const def     = saved
+      || (profiles || []).find((p: Profile) => p.is_default)
+      || profiles?.[0]
+      || null
     setActiveProfile(def)
   }, [])
 
@@ -77,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
+    localStorage.removeItem('amorph_active_profile_id')
     setUser(null); setProfiles([]); setActiveProfile(null)
   }
 
@@ -104,7 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data.profile as Profile
   }
 
-  const switchProfile = (profile: Profile) => setActiveProfile(profile)
+  const switchProfile = (profile: Profile) => {
+    setActiveProfile(profile)
+    localStorage.setItem('amorph_active_profile_id', profile.id)
+  }
 
   const deleteProfile = async (id: string) => {
     const r = await fetch(`/api/profiles?id=${id}`, { method: 'DELETE' })
