@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true })
 
       case 'revoke_code':
-        // Revoke invite code + unverify
+        // Revoke invite code + unverify + unbind discord
         const { data: user } = await supabaseAdmin
           .from('users').select('verify_code').eq('id', target_id).single()
         if (user?.verify_code) {
@@ -40,7 +40,12 @@ export async function POST(req: Request) {
             .eq('code', user.verify_code)
         }
         await supabaseAdmin.from('users')
-          .update({ is_verified: false })
+          .update({
+            is_verified:      false,
+            verify_code:      null,
+            discord_user_id:  null,
+            discord_username: null,
+          })
           .eq('id', target_id)
         return NextResponse.json({ ok: true })
 

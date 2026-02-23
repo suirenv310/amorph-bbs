@@ -199,6 +199,8 @@ export default function Home() {
   const [rpUploading,   setRpUploading]   = useState(false)
   // Spoiler reveal state
   const [spoilerRevealed, setSpoilerRevealed] = useState<Record<string,boolean>>({})
+  // memberTick — increment to force MemberList refetch
+  const [memberTick, setMemberTick] = useState(0)
 
   // DM tab
   const [conversations, setConversations] = useState<any[]>([])
@@ -264,13 +266,39 @@ export default function Home() {
     fetchMessages(room.id)
   }
 
-  // Realtime chat
+  // Realtime chat — messages (INSERT/UPDATE/DELETE) + room_members changes
   useEffect(() => {
     if (!activeRoom) return
-    const ch = supabase.channel(`room-${activeRoom.id}`)
-      .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`room_id=eq.${activeRoom.id}` },
-        () => fetchMessages(activeRoom.id))
+    const roomId = activeRoom.id
+
+    const ch = supabase.channel(`room-${roomId}`)
+      // New message
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+        () => fetchMessages(roomId)
+      )
+      // Deleted/edited message — refetch to get updated content
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          setMessages(msgs => msgs.map(m =>
+            m.id === payload.new.id
+              ? { ...m, content: payload.new.deleted ? '[deleted]' : payload.new.content, deleted: payload.new.deleted }
+              : m
+          ))
+        }
+      )
+      // Members join/leave — trigger MemberList re-render via key change
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'room_members', filter: `room_id=eq.${roomId}` },
+        () => setMemberTick(t => t + 1)
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'room_members', filter: `room_id=eq.${roomId}` },
+        () => setMemberTick(t => t + 1)
+      )
       .subscribe()
+
     return () => { supabase.removeChannel(ch) }
   }, [activeRoom?.id])
 
@@ -298,6 +326,37 @@ export default function Home() {
   }, [forumSearch])
 
   useEffect(() => { if (view==='forum') fetchThreads() }, [view, fetchThreads])
+
+  // Forum realtime — mới post thread/reply thì tự refresh
+  useEffect(() => {
+    if (view !== 'forum') return
+    const ch = supabase.channel('forum-realtime')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'threads' },
+        () => fetchThreads()
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'threads' },
+        () => fetchThreads()
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'replies' },
+        (payload) => {
+          // Nếu đang xem thread đó thì refetch replies
+          setActiveThread(t => {
+            if (t && payload.new.thread_id === t.id) {
+              fetch(`/api/forum/replies?thread_id=${t.id}`)
+                .then(r => r.json()).then(({ replies }) => setReplies(replies || []))
+            }
+            return t
+          })
+          // Luôn update reply_count trên thread list
+          fetchThreads()
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [view, fetchThreads])
 
   const openThread = async (t: Thread) => {
     setActiveThread(t)
@@ -432,7 +491,15 @@ export default function Home() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, target_id, ...extra }),
     })
-    if (r.ok) fetchAdmin('users')
+    if (!r.ok) return
+    if (action === 'delete_message' && activeRoom) {
+      // Soft-delete: update message in UI immediately
+      setMessages(msgs => msgs.map(m =>
+        m.id === target_id ? { ...m, content: '[deleted]', deleted: true } : m
+      ))
+    } else {
+      fetchAdmin('users')
+    }
   }
 
   const confirm = (msg: string, cb: () => void) => setConfirmAction({ msg, cb })
@@ -848,9 +915,42 @@ export default function Home() {
                     <div style={{ flex:1, overflowY:'auto', padding:'11px 15px', display:'flex', flexDirection:'column', gap:4, background:'var(--panel)' }}>
                       {dmMessages.map((m:any)=>{
                         const isMine = m.sender_id === user?.id
+                        const partnerName = activeDm?.username || '?'
                         return (
-                          <div key={m.id} style={{ display:'flex', flexDirection:isMine?'row-reverse':'row', gap:10 }}>
-                            <div style={{ maxWidth:'70%', padding:'8px 12px', background:isMine?'rgba(0,212,255,.1)':'var(--panel2)', border:`1px solid ${isMine?'var(--borderB)':'var(--border)'}` }}>
+                          <div key={m.id} style={{
+                            display:'flex',
+                            flexDirection: isMine ? 'row-reverse' : 'row',
+                            gap:8, alignItems:'flex-end',
+                            marginLeft:  isMine ? '15%' : 0,
+                            marginRight: isMine ? 0 : '15%',
+                          }}>
+                            {/* mini avatar */}
+                            <div style={{
+                              width:24, height:24, borderRadius:'50%', flexShrink:0,
+                              background: isMine ? 'var(--cyan)' : 'var(--borderB)',
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontSize:10, fontWeight:900, color:'#000',
+                              fontFamily:"'Orbitron',monospace",
+                              alignSelf:'flex-end', marginBottom:2,
+                            }}>
+                              {isMine
+                                ? (user?.username?.[0] ?? '?').toUpperCase()
+                                : partnerName[0].toUpperCase()
+                              }
+                            </div>
+                            <div style={{
+                              maxWidth:'100%', padding:'8px 12px',
+                              background: isMine ? 'rgba(0,212,255,.13)' : 'rgba(255,255,255,.04)',
+                              border:`1px solid ${isMine ? 'rgba(0,212,255,.4)' : 'rgba(255,255,255,.08)'}`,
+                              borderRadius: isMine ? '8px 8px 2px 8px' : '8px 8px 8px 2px',
+                            }}>
+                              <div style={{
+                                fontSize:9, fontFamily:"'Share Tech Mono',monospace",
+                                color: isMine ? 'var(--cyan)' : 'var(--textDim)',
+                                marginBottom:4, letterSpacing:0.5,
+                              }}>
+                                {isMine ? 'YOU' : partnerName.toUpperCase()}
+                              </div>
                               <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.5 }}>{m.content}</div>
                               <div style={{ fontSize:10, color:'var(--textMuted)', fontFamily:"'Share Tech Mono',monospace", marginTop:4, textAlign:isMine?'right':'left' }}>
                                 {new Date(m.created_at).toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'})}
@@ -996,6 +1096,7 @@ export default function Home() {
         <aside style={{ borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
           {view==='chat' && activeRoom ? (
             <MemberList
+              key={`${activeRoom.id}-${memberTick}`}
               roomId={activeRoom.id}
               ownerId={roomOwners[activeRoom.id] || ''}
               onDmClick={dmPopup.openDm}
