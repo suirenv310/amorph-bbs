@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = getSessionUser(req)
   if (!session)          return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
-  if (!session.is_verified) return NextResponse.json({ error: 'Cần verify code để đăng bài' }, { status: 403 })
+  if (!session.is_verified && session.role !== 'admin') return NextResponse.json({ error: 'Cần verify code để đăng bài' }, { status: 403 })
 
   const { title, body, tag, profile_id } = await req.json()
 
