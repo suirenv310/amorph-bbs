@@ -16,7 +16,8 @@ export async function verifyPassword(p: string, hash: string) {
 
 // ── JWT ───────────────────────────────────────────────────────
 export function createToken(user: SessionUser): string {
-  return jwt.sign(user, JWT_SECRET, { expiresIn: '14d' })
+  const { exp, iat, ...payload } = user as any
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '14d' })
 }
 export function verifyToken(token: string): SessionUser | null {
   try { return jwt.verify(token, JWT_SECRET) as SessionUser }
