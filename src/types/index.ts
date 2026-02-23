@@ -67,9 +67,16 @@ export interface Thread {
   deleted: boolean
   created_at: string
   updated_at: string
+  // Media
+  media_urls:  string[]
+  media_types: ('image' | 'video')[]
+  is_spoiler:  boolean
+  // Visibility: 'anon' = ẩn danh, 'public' = hiện username+avatar
+  visibility:  'anon' | 'public'
+  // Public profile info (visible when visibility='public')
+  author_profile?: Pick<Profile, 'id' | 'display_name' | 'avatar' | 'color'> | null
   // Only visible to admins:
   author?: Pick<User, 'id' | 'username' | 'discord_username' | 'verify_code'> | null
-  author_profile?: Pick<Profile, 'id' | 'display_name'> | null
 }
 
 export interface Reply {
@@ -78,6 +85,13 @@ export interface Reply {
   body: string
   deleted: boolean
   created_at: string
+  // Media
+  media_urls:  string[]
+  media_types: ('image' | 'video')[]
+  is_spoiler:  boolean
+  visibility:  'anon' | 'public'
+  // Public profile info (visible when visibility='public')
+  author_profile?: Pick<Profile, 'id' | 'display_name' | 'avatar' | 'color'> | null
   // Only visible to admins:
   author?: Pick<User, 'id' | 'username' | 'discord_username' | 'verify_code'> | null
 }

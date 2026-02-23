@@ -185,6 +185,20 @@ export default function Home() {
   const [ntTitle,       setNtTitle]       = useState('')
   const [ntBody,        setNtBody]        = useState('')
   const [ntTag,         setNtTag]         = useState<'new'|'hot'|'discussion'>('new')
+  // New thread media/options
+  const [ntMediaUrls,   setNtMediaUrls]   = useState<string[]>([])
+  const [ntMediaTypes,  setNtMediaTypes]  = useState<('image'|'video')[]>([])
+  const [ntSpoiler,     setNtSpoiler]     = useState(false)
+  const [ntVisibility,  setNtVisibility]  = useState<'anon'|'public'>('anon')
+  const [ntUploading,   setNtUploading]   = useState(false)
+  // Reply media/options
+  const [rpMediaUrls,   setRpMediaUrls]   = useState<string[]>([])
+  const [rpMediaTypes,  setRpMediaTypes]  = useState<('image'|'video')[]>([])
+  const [rpSpoiler,     setRpSpoiler]     = useState(false)
+  const [rpVisibility,  setRpVisibility]  = useState<'anon'|'public'>('anon')
+  const [rpUploading,   setRpUploading]   = useState(false)
+  // Spoiler reveal state
+  const [spoilerRevealed, setSpoilerRevealed] = useState<Record<string,boolean>>({})
 
   // DM tab
   const [conversations, setConversations] = useState<any[]>([])
@@ -292,22 +306,76 @@ export default function Home() {
     setReplies(data || [])
   }
 
+  // Upload media helper
+  const uploadMedia = async (file: File): Promise<{url:string,type:'image'|'video'}|null> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch('/api/upload/media', { method:'POST', body:fd })
+    if (!r.ok) { const { error } = await r.json(); alert(error); return null }
+    return r.json()
+  }
+
+  const handleMediaSelect = async (
+    files: FileList | null,
+    setUrls: React.Dispatch<React.SetStateAction<string[]>>,
+    setTypes: React.Dispatch<React.SetStateAction<('image'|'video')[]>>,
+    setUploading: React.Dispatch<React.SetStateAction<boolean>>,
+    currentCount: number
+  ) => {
+    if (!files) return
+    const remaining = 4 - currentCount
+    const toUpload  = Array.from(files).slice(0, remaining)
+    setUploading(true)
+    for (const file of toUpload) {
+      const result = await uploadMedia(file)
+      if (result) {
+        setUrls(u  => [...u, result.url])
+        setTypes(t => [...t, result.type])
+      }
+    }
+    setUploading(false)
+  }
+
   const postThread = async () => {
     if (!ntTitle.trim() || !ntBody.trim()) return
     const r = await fetch('/api/forum/threads', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title:ntTitle, body:ntBody, tag:ntTag, profile_id: activeProfile?.id }),
+      body: JSON.stringify({
+        title: ntTitle, body: ntBody, tag: ntTag,
+        profile_id:  ntVisibility === 'public' ? activeProfile?.id : null,
+        media_urls:  ntMediaUrls,
+        media_types: ntMediaTypes,
+        is_spoiler:  ntSpoiler,
+        visibility:  ntVisibility,
+      }),
     })
-    if (r.ok) { setNewThreadOpen(false); setNtTitle(''); setNtBody(''); fetchThreads() }
+    if (r.ok) {
+      setNewThreadOpen(false)
+      setNtTitle(''); setNtBody(''); setNtTag('new')
+      setNtMediaUrls([]); setNtMediaTypes([]); setNtSpoiler(false); setNtVisibility('anon')
+      fetchThreads()
+    }
   }
 
   const postReply = async () => {
     if (!replyInput.trim() || !activeThread) return
     const r = await fetch('/api/forum/replies', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ thread_id: activeThread.id, body: replyInput, profile_id: activeProfile?.id }),
+      body: JSON.stringify({
+        thread_id:   activeThread.id,
+        body:        replyInput,
+        profile_id:  rpVisibility === 'public' ? activeProfile?.id : null,
+        media_urls:  rpMediaUrls,
+        media_types: rpMediaTypes,
+        is_spoiler:  rpSpoiler,
+        visibility:  rpVisibility,
+      }),
     })
-    if (r.ok) { setReplyInput(''); openThread(activeThread) }
+    if (r.ok) {
+      setReplyInput('')
+      setRpMediaUrls([]); setRpMediaTypes([]); setRpSpoiler(false); setRpVisibility('anon')
+      openThread(activeThread)
+    }
   }
 
   const deleteThread = async (id: string) => {
@@ -571,6 +639,8 @@ export default function Home() {
                   }}>
                     <div style={{ fontSize:13, fontWeight:600, color:'var(--white)', display:'flex', alignItems:'center', gap:5, marginBottom:4, flexWrap:'wrap' }}>
                       <span className={`tag tag-${t.tag}`}>{t.tag.toUpperCase()}</span>
+                      {t.is_spoiler && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(255,170,0,.12)', color:'var(--yellow)', padding:'1px 5px' }}>SPOILER</span>}
+                      {(t.media_urls?.length>0) && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)' }}>📎</span>}
                       {t.title}
                       {isAdmin && (t as any).author && (
                         <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--yellow)', background:'rgba(240,192,64,.08)', padding:'1px 6px', marginLeft:4 }}>
@@ -578,8 +648,12 @@ export default function Home() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', display:'flex', gap:9 }}>
-                      <span>Anon</span><span>•</span>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', display:'flex', alignItems:'center', gap:9 }}>
+                      {t.visibility==='public' && t.author_profile
+                        ? <span style={{ color:'var(--textDim)' }}>{t.author_profile.display_name}</span>
+                        : <span>Anon</span>
+                      }
+                      <span>•</span>
                       <span>{new Date(t.created_at).toLocaleDateString('vi')}</span><span>•</span>
                       <span>{t.reply_count} replies</span>
                     </div>
@@ -598,9 +672,13 @@ export default function Home() {
                 {/* OP */}
                 <div style={{ border:'1px solid var(--borderB)', background:'var(--panel2)', padding:13 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8, paddingBottom:9, marginBottom:9, borderBottom:'1px solid rgba(255,255,255,.04)', flexWrap:'wrap' }}>
-                    <span style={{ fontSize:14, fontWeight:700, color:'var(--textDim)' }}>Anon</span>
+                    {activeThread.visibility==='public' && activeThread.author_profile
+                      ? <span style={{ fontSize:14, fontWeight:700, color:activeThread.author_profile.color||'var(--cyan)' }}>{activeThread.author_profile.display_name}</span>
+                      : <span style={{ fontSize:14, fontWeight:700, color:'var(--textDim)' }}>Anon</span>
+                    }
                     <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(0,212,255,.1)', color:'var(--cyan)', padding:'2px 6px' }}>OP</span>
                     <span className={`tag tag-${activeThread.tag}`}>{activeThread.tag.toUpperCase()}</span>
+                    {activeThread.is_spoiler && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(255,170,0,.12)', color:'var(--yellow)', padding:'1px 5px' }}>SPOILER</span>}
                     {isAdmin && (activeThread as any).author && (
                       <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--yellow)', background:'rgba(240,192,64,.08)', padding:'2px 8px' }}>
                         {(activeThread as any).author.username} · {(activeThread as any).author.verify_code}
@@ -614,15 +692,40 @@ export default function Home() {
                     )}
                   </div>
                   <div style={{ fontSize:17, fontWeight:700, color:'var(--white)', marginBottom:11 }}>{activeThread.title}</div>
-                  <div style={{ fontSize:13, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{activeThread.body}</div>
+                  {activeThread.is_spoiler && !spoilerRevealed['op'] ? (
+                    <div style={{ padding:'20px', textAlign:'center', background:'rgba(255,170,0,.06)', border:'1px solid rgba(255,170,0,.2)', cursor:'pointer' }}
+                      onClick={()=>setSpoilerRevealed(s=>({...s,'op':true}))}>
+                      <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:'var(--yellow)', letterSpacing:2 }}>⚠ SPOILER — click to reveal</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize:13, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{activeThread.body}</div>
+                      {activeThread.media_urls?.length>0 && (
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                          {activeThread.media_urls.map((url,i)=>(
+                            activeThread.media_types[i]==='video'
+                              ? <video key={i} src={url} controls style={{ maxWidth:'100%', maxHeight:300, border:'1px solid var(--border)' }} />
+                              : <img key={i} src={url} alt="" style={{ maxWidth:'100%', maxHeight:300, objectFit:'contain', border:'1px solid var(--border)', cursor:'pointer' }} onClick={()=>window.open(url,'_blank')} />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Replies */}
-                {replies.map((r,i)=>(
+                {replies.map((r,i)=>{
+                  const rKey = `reply-${r.id}`
+                  const isDeleted = r.body==='[deleted]'
+                  return (
                   <div key={r.id} style={{ border:'1px solid var(--border)', background:'var(--panel)', padding:13 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8, paddingBottom:9, marginBottom:9, borderBottom:'1px solid rgba(255,255,255,.04)', flexWrap:'wrap' }}>
                       <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)' }}>#{i+1}</span>
-                      <span style={{ fontSize:13, fontWeight:700, color: r.body==='[deleted]'?'var(--textMuted)':'var(--textDim)' }}>Anon</span>
+                      {r.visibility==='public' && r.author_profile && !isDeleted
+                        ? <span style={{ fontSize:13, fontWeight:700, color:r.author_profile.color||'var(--textDim)' }}>{r.author_profile.display_name}</span>
+                        : <span style={{ fontSize:13, fontWeight:700, color:isDeleted?'var(--textMuted)':'var(--textDim)' }}>Anon</span>
+                      }
+                      {r.is_spoiler && !isDeleted && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(255,170,0,.12)', color:'var(--yellow)', padding:'1px 5px' }}>SPOILER</span>}
                       {isAdmin && (r as any).author && (
                         <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--yellow)', background:'rgba(240,192,64,.08)', padding:'2px 7px' }}>
                           {(r as any).author.username}
@@ -631,22 +734,86 @@ export default function Home() {
                       <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', marginLeft:'auto' }}>
                         {new Date(r.created_at).toLocaleString('vi')}
                       </span>
-                      {r.body !== '[deleted]' && (isAdmin || (r as any).author_id === user?.id) && (
+                      {!isDeleted && (isAdmin || (r as any).author_id === user?.id) && (
                         <button onClick={()=>confirm('Delete reply?',()=>deleteReply(r.id))} style={{ background:'rgba(255,58,90,.08)', border:'1px solid rgba(255,58,90,.25)', color:'var(--red)', fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'2px 7px', cursor:'pointer' }}>DEL</button>
                       )}
                     </div>
-                    <div style={{ fontSize:13, lineHeight:1.7, color: r.body==='[deleted]'?'var(--textMuted)':'var(--text)', whiteSpace:'pre-wrap', fontStyle: r.body==='[deleted]'?'italic':'normal' }}>{r.body}</div>
+                    {isDeleted ? (
+                      <div style={{ fontSize:13, lineHeight:1.7, color:'var(--textMuted)', whiteSpace:'pre-wrap', fontStyle:'italic' }}>{r.body}</div>
+                    ) : r.is_spoiler && !spoilerRevealed[rKey] ? (
+                      <div style={{ padding:'16px', textAlign:'center', background:'rgba(255,170,0,.06)', border:'1px solid rgba(255,170,0,.2)', cursor:'pointer' }}
+                        onClick={()=>setSpoilerRevealed(s=>({...s,[rKey]:true}))}>
+                        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:'var(--yellow)', letterSpacing:2 }}>⚠ SPOILER — click to reveal</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:13, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{r.body}</div>
+                        {r.media_urls?.length>0 && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                            {r.media_urls.map((url,mi)=>(
+                              r.media_types[mi]==='video'
+                                ? <video key={mi} src={url} controls style={{ maxWidth:'100%', maxHeight:260, border:'1px solid var(--border)' }} />
+                                : <img key={mi} src={url} alt="" style={{ maxWidth:'100%', maxHeight:260, objectFit:'contain', border:'1px solid var(--border)', cursor:'pointer' }} onClick={()=>window.open(url,'_blank')} />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               {isVerified ? (
                 <div style={{ border:'1px solid var(--border)', background:'var(--panel2)', padding:13, margin:'0 13px 13px', flexShrink:0 }}>
-                  <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, marginBottom:8 }}>// POST AS ANON</div>
+                  {/* Visibility + Spoiler toggles */}
+                  <div style={{ display:'flex', gap:8, marginBottom:8, alignItems:'center' }}>
+                    <button onClick={()=>setRpVisibility(v=>v==='anon'?'public':'anon')}
+                      style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'3px 8px', cursor:'pointer', letterSpacing:1,
+                        background: rpVisibility==='public' ? 'rgba(0,212,255,.12)' : 'none',
+                        border: `1px solid ${rpVisibility==='public' ? 'var(--cyan)' : 'var(--border)'}`,
+                        color: rpVisibility==='public' ? 'var(--cyan)' : 'var(--textMuted)',
+                      }}>
+                      {rpVisibility==='public' ? (activeProfile ? activeProfile.display_name : 'PUBLIC') : 'ANON'}
+                    </button>
+                    <button onClick={()=>setRpSpoiler(s=>!s)}
+                      style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'3px 8px', cursor:'pointer', letterSpacing:1,
+                        background: rpSpoiler ? 'rgba(255,170,0,.12)' : 'none',
+                        border: `1px solid ${rpSpoiler ? 'var(--yellow)' : 'var(--border)'}`,
+                        color: rpSpoiler ? 'var(--yellow)' : 'var(--textMuted)',
+                      }}>
+                      SPOILER {rpSpoiler ? 'ON' : 'OFF'}
+                    </button>
+                    {rpVisibility==='public' && !activeProfile && (
+                      <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--red)' }}>⚠ cần active profile</span>
+                    )}
+                  </div>
                   <textarea value={replyInput} onChange={e=>setReplyInput(e.target.value)} placeholder="Write your reply..."
                     style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'8px 11px', resize:'vertical', outline:'none', minHeight:65, display:'block', marginBottom:8 }} />
-                  <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                    <button onClick={postReply} className="btn-primary" style={{ padding:'7px 18px', fontSize:10 }}>POST</button>
+                  {/* Media preview */}
+                  {rpMediaUrls.length>0 && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                      {rpMediaUrls.map((url,i)=>(
+                        <div key={i} style={{ position:'relative' }}>
+                          {rpMediaTypes[i]==='video'
+                            ? <video src={url} style={{ height:70, border:'1px solid var(--border)' }} />
+                            : <img src={url} alt="" style={{ height:70, objectFit:'cover', border:'1px solid var(--border)' }} />
+                          }
+                          <button onClick={()=>{ setRpMediaUrls(u=>u.filter((_,j)=>j!==i)); setRpMediaTypes(t=>t.filter((_,j)=>j!==i)) }}
+                            style={{ position:'absolute', top:2, right:2, background:'rgba(0,0,0,.7)', border:'none', color:'white', width:16, height:16, cursor:'pointer', fontSize:10, lineHeight:1 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <label style={{ cursor:'pointer' }}>
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4" multiple style={{ display:'none' }}
+                        onChange={e=>handleMediaSelect(e.target.files, setRpMediaUrls, setRpMediaTypes, setRpUploading, rpMediaUrls.length)} />
+                      <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)', padding:'3px 8px', border:'1px solid var(--border)', cursor:'pointer', letterSpacing:1 }}>
+                        {rpUploading ? 'UPLOADING...' : `📎 MEDIA (${rpMediaUrls.length}/4)`}
+                      </span>
+                    </label>
+                    <button onClick={postReply} className="btn-primary" style={{ padding:'7px 18px', fontSize:10 }} disabled={rpUploading}>POST</button>
                   </div>
                 </div>
               ) : user ? (
@@ -864,10 +1031,31 @@ export default function Home() {
       {/* New thread modal */}
       {newThreadOpen && (
         <div className="overlay" onClick={e=>e.target===e.currentTarget&&setNewThreadOpen(false)}>
-          <div className="modal-box" style={{ width:460 }}>
+          <div className="modal-box" style={{ width:480 }}>
             <button onClick={()=>setNewThreadOpen(false)} style={{ position:'absolute', top:10, right:14, background:'none', border:'none', color:'var(--textMuted)', fontSize:17, cursor:'pointer' }}>✕</button>
             <div style={{ fontFamily:"'Orbitron',monospace", fontSize:14, color:'var(--cyan)', textAlign:'center', letterSpacing:2, marginBottom:3 }}>NEW THREAD</div>
-            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', textAlign:'center', marginBottom:18 }}>// post as Anon //</div>
+            {/* Visibility + Spoiler */}
+            <div style={{ display:'flex', gap:8, marginBottom:14, justifyContent:'center' }}>
+              <button onClick={()=>setNtVisibility(v=>v==='anon'?'public':'anon')}
+                style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'4px 10px', cursor:'pointer', letterSpacing:1,
+                  background: ntVisibility==='public' ? 'rgba(0,212,255,.12)' : 'none',
+                  border: `1px solid ${ntVisibility==='public' ? 'var(--cyan)' : 'var(--border)'}`,
+                  color: ntVisibility==='public' ? 'var(--cyan)' : 'var(--textMuted)',
+                }}>
+                {ntVisibility==='public' ? (activeProfile ? `PUBLIC: ${activeProfile.display_name}` : 'PUBLIC (no profile)') : 'ANON'}
+              </button>
+              <button onClick={()=>setNtSpoiler(s=>!s)}
+                style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'4px 10px', cursor:'pointer', letterSpacing:1,
+                  background: ntSpoiler ? 'rgba(255,170,0,.12)' : 'none',
+                  border: `1px solid ${ntSpoiler ? 'var(--yellow)' : 'var(--border)'}`,
+                  color: ntSpoiler ? 'var(--yellow)' : 'var(--textMuted)',
+                }}>
+                SPOILER {ntSpoiler ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            {ntVisibility==='public' && !activeProfile && (
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--red)', textAlign:'center', marginBottom:10 }}>⚠ cần active profile để đăng public</div>
+            )}
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>TITLE</label>
             <input value={ntTitle} onChange={e=>setNtTitle(e.target.value)} className="input-base" placeholder="Thread title..." style={{ display:'block', marginBottom:10 }} />
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>CONTENT</label>
@@ -877,7 +1065,31 @@ export default function Home() {
               <option value="discussion">DISCUSSION</option>
               <option value="hot">HOT</option>
             </select>
-            <button onClick={postThread} className="btn-primary" style={{ width:'100%' }}>POST THREAD</button>
+            {/* Media attach */}
+            {ntMediaUrls.length>0 && (
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+                {ntMediaUrls.map((url,i)=>(
+                  <div key={i} style={{ position:'relative' }}>
+                    {ntMediaTypes[i]==='video'
+                      ? <video src={url} style={{ height:70, border:'1px solid var(--border)' }} />
+                      : <img src={url} alt="" style={{ height:70, objectFit:'cover', border:'1px solid var(--border)' }} />
+                    }
+                    <button onClick={()=>{ setNtMediaUrls(u=>u.filter((_,j)=>j!==i)); setNtMediaTypes(t=>t.filter((_,j)=>j!==i)) }}
+                      style={{ position:'absolute', top:2, right:2, background:'rgba(0,0,0,.7)', border:'none', color:'white', width:16, height:16, cursor:'pointer', fontSize:10, lineHeight:1 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10 }}>
+              <label style={{ cursor:'pointer', flex:1 }}>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4" multiple style={{ display:'none' }}
+                  onChange={e=>handleMediaSelect(e.target.files, setNtMediaUrls, setNtMediaTypes, setNtUploading, ntMediaUrls.length)} />
+                <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)', padding:'4px 10px', border:'1px solid var(--border)', cursor:'pointer', letterSpacing:1, display:'inline-block' }}>
+                  {ntUploading ? 'UPLOADING...' : `📎 ATTACH MEDIA (${ntMediaUrls.length}/4)`}
+                </span>
+              </label>
+            </div>
+            <button onClick={postThread} className="btn-primary" style={{ width:'100%' }} disabled={ntUploading}>POST THREAD</button>
           </div>
         </div>
       )}
