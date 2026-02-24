@@ -77,6 +77,9 @@ export interface Thread {
   author_profile?: Pick<Profile, 'id' | 'display_name' | 'avatar' | 'color'> | null
   // Only visible to admins:
   author?: Pick<User, 'id' | 'username' | 'discord_username' | 'verify_code'> | null
+  upvotes?:   number
+  downvotes?: number
+  score?:     number
 }
 
 export interface Reply {
@@ -94,6 +97,9 @@ export interface Reply {
   author_profile?: Pick<Profile, 'id' | 'display_name' | 'avatar' | 'color'> | null
   // Only visible to admins:
   author?: Pick<User, 'id' | 'username' | 'discord_username' | 'verify_code'> | null
+  upvotes?:   number
+  downvotes?: number
+  score?:     number
 }
 
 export interface DirectMessage {

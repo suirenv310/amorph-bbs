@@ -9,6 +9,7 @@ import CreateRoomModal    from '@/components/CreateRoomModal'
 import RoomPasswordModal  from '@/components/RoomPasswordModal'
 import AvatarUpload       from '@/components/AvatarUpload'
 import AuditLog           from '@/components/AuditLog'
+import VoteButtons        from '@/components/VoteButtons'
 import type { Thread, Reply, Message, Room } from '@/types'
 
 const COLORS  = ['#00d4ff','#f0c040','#ff3a5a','#00ff88','#c580ff','#ff8844','#44aaff','#ff44cc','#88ff44','#ffaa00']
@@ -199,6 +200,9 @@ export default function Home() {
   const [rpUploading,   setRpUploading]   = useState(false)
   // Spoiler reveal state
   const [spoilerRevealed, setSpoilerRevealed] = useState<Record<string,boolean>>({})
+  // Votes
+  const [threadVotes, setThreadVotes] = useState<Record<string, { upvotes: number; downvotes: number; myVote: number }>>({})
+  const [replyVotes,  setReplyVotes]  = useState<Record<string, { upvotes: number; downvotes: number; myVote: number }>>({})
   // memberTick — increment to force MemberList refetch
   const [memberTick, setMemberTick] = useState(0)
 
@@ -322,7 +326,23 @@ export default function Home() {
     if (forumSearch) params.set('search', forumSearch)
     const r = await fetch(`/api/forum/threads?${params}`)
     const { threads: data } = await r.json()
-    setThreads(data || [])
+
+    // Sort: pinned lên đầu, sau đó theo score (upvotes - downvotes)
+    const sorted = (data || []).sort((a: any, b: any) => {
+      if (a.is_pinned !== b.is_pinned) return b.is_pinned ? 1 : -1
+      const scoreA = (a.upvotes || 0) - (a.downvotes || 0)
+      const scoreB = (b.upvotes || 0) - (b.downvotes || 0)
+      return scoreB - scoreA
+    })
+    setThreads(sorted)
+
+    // Fetch votes cho tất cả threads
+    if (sorted.length > 0) {
+      const ids = sorted.map((t: any) => t.id).join(',')
+      const vr  = await fetch(`/api/forum/votes?target_type=thread&target_ids=${ids}`)
+      const { votes } = await vr.json()
+      setThreadVotes(votes || {})
+    }
   }, [forumSearch])
 
   useEffect(() => { if (view==='forum') fetchThreads() }, [view, fetchThreads])
@@ -363,6 +383,19 @@ export default function Home() {
     const r = await fetch(`/api/forum/replies?thread_id=${t.id}`)
     const { replies: data } = await r.json()
     setReplies(data || [])
+
+    // Fetch votes cho replies
+    if (data && data.length > 0) {
+      const ids = data.map((r: any) => r.id).join(',')
+      const vr  = await fetch(`/api/forum/votes?target_type=reply&target_ids=${ids}`)
+      const { votes } = await vr.json()
+      setReplyVotes(votes || {})
+    }
+
+    // Refresh vote của thread này (cập nhật myVote khi mở detail)
+    const tvr = await fetch(`/api/forum/votes?target_type=thread&target_ids=${t.id}`)
+    const { votes: tv } = await tvr.json()
+    if (tv) setThreadVotes(prev => ({ ...prev, ...tv }))
   }
 
   // Upload media helper
@@ -703,30 +736,47 @@ export default function Home() {
               </div>
               <div style={{ flex:1, overflowY:'auto', padding:'10px 13px', display:'flex', flexDirection:'column', gap:8 }}>
                 {threads.map(t=>(
-                  <div key={t.id} onClick={()=>openThread(t)} style={{
+                  <div key={t.id} style={{
                     border:'1px solid var(--border)', background:'var(--panel)', padding:'11px 13px',
-                    cursor:'pointer', transition:'all .15s',
+                    transition:'all .15s',
                     borderLeft:`2px solid ${t.tag==='hot'?'var(--red)':t.tag==='pinned'?'var(--yellow)':'var(--borderB)'}`,
                   }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--white)', display:'flex', alignItems:'center', gap:5, marginBottom:4, flexWrap:'wrap' }}>
-                      <span className={`tag tag-${t.tag}`}>{t.tag.toUpperCase()}</span>
-                      {t.is_spoiler && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(255,170,0,.12)', color:'var(--yellow)', padding:'1px 5px' }}>SPOILER</span>}
-                      {(t.media_urls?.length>0) && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)' }}>📎</span>}
-                      {t.title}
-                      {isAdmin && (t as any).author && (
-                        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--yellow)', background:'rgba(240,192,64,.08)', padding:'1px 6px', marginLeft:4 }}>
-                          {(t as any).author.username}
-                        </span>
-                      )}
+                    {/* Title — clickable để mở thread */}
+                    <div onClick={()=>openThread(t)} style={{ cursor:'pointer' }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--white)', display:'flex', alignItems:'center', gap:5, marginBottom:4, flexWrap:'wrap' }}>
+                        <span className={`tag tag-${t.tag}`}>{t.tag.toUpperCase()}</span>
+                        {t.is_spoiler && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, background:'rgba(255,170,0,.12)', color:'var(--yellow)', padding:'1px 5px' }}>SPOILER</span>}
+                        {(t.media_urls?.length>0) && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--textMuted)' }}>📎</span>}
+                        {t.title}
+                        {isAdmin && (t as any).author && (
+                          <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--yellow)', background:'rgba(240,192,64,.08)', padding:'1px 6px', marginLeft:4 }}>
+                            {(t as any).author.username}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', display:'flex', alignItems:'center', gap:9 }}>
-                      {t.visibility==='public' && t.author_profile
-                        ? <span style={{ color:'var(--textDim)' }}>{t.author_profile.display_name}</span>
-                        : <span>Anon</span>
-                      }
-                      <span>•</span>
-                      <span>{new Date(t.created_at).toLocaleDateString('vi')}</span><span>•</span>
-                      <span>{t.reply_count} replies</span>
+                    {/* Footer: meta + vote buttons */}
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)', display:'flex', alignItems:'center', gap:9, flexWrap:'wrap', marginTop:2 }}>
+                      <span onClick={()=>openThread(t)} style={{ cursor:'pointer', display:'contents' }}>
+                        {t.visibility==='public' && t.author_profile
+                          ? <span style={{ color:'var(--textDim)' }}>{t.author_profile.display_name}</span>
+                          : <span>Anon</span>
+                        }
+                        <span>•</span>
+                        <span>{new Date(t.created_at).toLocaleDateString('vi')}</span>
+                        <span>•</span>
+                        <span>{t.reply_count} replies</span>
+                        <span>•</span>
+                      </span>
+                      {/* VoteButtons: stopPropagation để click không trigger openThread */}
+                      <span onClick={e => e.stopPropagation()}>
+                        <VoteButtons
+                          targetType="thread"
+                          targetId={t.id}
+                          initial={threadVotes[t.id] || { upvotes: t.upvotes||0, downvotes: t.downvotes||0, myVote: 0 }}
+                          onAuthRequired={() => setShowAuth(true)}
+                        />
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -761,6 +811,13 @@ export default function Home() {
                     {(isAdmin || (activeThread as any).author_id === user?.id) && (
                       <button onClick={()=>confirm('Delete thread?',()=>deleteThread(activeThread.id))} style={{ background:'rgba(255,58,90,.08)', border:'1px solid rgba(255,58,90,.25)', color:'var(--red)', fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'2px 7px', cursor:'pointer' }}>DEL</button>
                     )}
+                    {/* ── Vote buttons trên OP ── */}
+                    <VoteButtons
+                      targetType="thread"
+                      targetId={activeThread.id}
+                      initial={threadVotes[activeThread.id] || { upvotes: activeThread.upvotes||0, downvotes: activeThread.downvotes||0, myVote: 0 }}
+                      onAuthRequired={() => setShowAuth(true)}
+                    />
                   </div>
                   <div style={{ fontSize:17, fontWeight:700, color:'var(--white)', marginBottom:11 }}>{activeThread.title}</div>
                   {activeThread.is_spoiler && !spoilerRevealed['op'] ? (
@@ -807,6 +864,15 @@ export default function Home() {
                       </span>
                       {!isDeleted && (isAdmin || (r as any).author_id === user?.id) && (
                         <button onClick={()=>confirm('Delete reply?',()=>deleteReply(r.id))} style={{ background:'rgba(255,58,90,.08)', border:'1px solid rgba(255,58,90,.25)', color:'var(--red)', fontFamily:"'Share Tech Mono',monospace", fontSize:9, padding:'2px 7px', cursor:'pointer' }}>DEL</button>
+                      )}
+                      {/* ── Vote buttons trên reply ── */}
+                      {!isDeleted && (
+                        <VoteButtons
+                          targetType="reply"
+                          targetId={r.id}
+                          initial={replyVotes[r.id] || { upvotes: r.upvotes||0, downvotes: r.downvotes||0, myVote: 0 }}
+                          onAuthRequired={() => setShowAuth(true)}
+                        />
                       )}
                     </div>
                     {isDeleted ? (
