@@ -617,15 +617,19 @@ export default function Home() {
               <div style={{ flex:1, overflowY:'auto', padding:'11px 15px', display:'flex', flexDirection:'column', gap:1, background:'var(--panel)' }}>
                 {messages.map(m=>{
                   const author = (m as any).author
+                  const prof   = (m as any).author_profile
+                  const displayName = prof?.display_name || author?.username || '???'
+                  const avatarColor = prof?.color || 'var(--cyan)'
+                  const avatarChar  = prof?.avatar || author?.username?.[0]?.toUpperCase() || '?'
                   return (
                     <div key={m.id} className="animate-msg-in" style={{ display:'flex', gap:10, padding:'4px 0', borderBottom:'1px solid rgba(255,255,255,.02)', position:'relative' }}
                       onMouseEnter={e=>(e.currentTarget.querySelector('.msg-actions') as HTMLElement)?.style && ((e.currentTarget.querySelector('.msg-actions') as HTMLElement).style.opacity='1')}
                       onMouseLeave={e=>(e.currentTarget.querySelector('.msg-actions') as HTMLElement)?.style && ((e.currentTarget.querySelector('.msg-actions') as HTMLElement).style.opacity='0')}
                     >
-                      {/* Avatar */}
+                      {/* Avatar — dùng profile nếu có */}
                       <div onClick={()=>user && author?.id !== user.id && dmPopup.openDm({ id: author?.id, username: author?.username, avatar_url: author?.avatar_url })}
-                        style={{ width:28, height:28, borderRadius:'50%', flexShrink:0, marginTop:2, background:'var(--cyan)', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Orbitron',monospace", fontSize:11, fontWeight:900, color:'#000', cursor: author?.id !== user?.id ? 'pointer' : 'default' }}>
-                        {author?.avatar_url ? <img src={author.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : author?.username?.[0]?.toUpperCase()||'?'}
+                        style={{ width:28, height:28, borderRadius:'50%', flexShrink:0, marginTop:2, background:avatarColor, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Orbitron',monospace", fontSize:11, fontWeight:900, color:'#000', cursor: author?.id !== user?.id ? 'pointer' : 'default' }}>
+                        {author?.avatar_url ? <img src={author.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : avatarChar}
                       </div>
 
                       <div style={{ flex:1, overflow:'hidden' }}>
@@ -637,7 +641,7 @@ export default function Home() {
                           </div>
                         )}
                         <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:'var(--cyan)' }}>{author?.username||'???'}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color:avatarColor }}>{displayName}</span>
                           <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textMuted)' }}>
                             {new Date(m.created_at).toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'})}
                           </span>
@@ -675,7 +679,7 @@ export default function Home() {
                     <textarea value={chatInput} onChange={e=>setChatInput(e.target.value)}
                       onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()} }}
                       placeholder="Message... (Enter to send)"
-                      style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'8px 12px', resize:'none', outline:'none', minHeight:38, maxHeight:90 }} />
+                      style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'8px 12px', resize:'none', outline:'none', minHeight:38, maxHeight:90 }} />
                     <button onClick={sendMessage} className="btn-primary" style={{ alignSelf:'flex-end', padding:'8px 15px' }}>SEND</button>
                   </>
                 ) : (
@@ -856,7 +860,7 @@ export default function Home() {
                     )}
                   </div>
                   <textarea value={replyInput} onChange={e=>setReplyInput(e.target.value)} placeholder="Write your reply..."
-                    style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'8px 11px', resize:'vertical', outline:'none', minHeight:65, display:'block', marginBottom:8 }} />
+                    style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'8px 11px', resize:'vertical', outline:'none', minHeight:65, display:'block', marginBottom:8 }} />
                   {/* Media preview */}
                   {rpMediaUrls.length>0 && (
                     <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
@@ -914,7 +918,7 @@ export default function Home() {
                     </div>
                     <div style={{ flex:1, overflowY:'auto', padding:'11px 15px', display:'flex', flexDirection:'column', gap:4, background:'var(--panel)' }}>
                       {dmMessages.map((m:any)=>{
-                        const isMine = m.sender_id === user?.id
+                        const isMine = (m.sender?.id ?? m.sender_id) === user?.id
                         const partnerName = activeDm?.username || '?'
                         return (
                           <div key={m.id} style={{
@@ -1160,8 +1164,8 @@ export default function Home() {
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>TITLE</label>
             <input value={ntTitle} onChange={e=>setNtTitle(e.target.value)} className="input-base" placeholder="Thread title..." style={{ display:'block', marginBottom:10 }} />
             <label style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:'var(--textDim)', letterSpacing:2, display:'block', marginBottom:5 }}>CONTENT</label>
-            <textarea value={ntBody} onChange={e=>setNtBody(e.target.value)} placeholder="What's on your mind..." style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'9px 12px', resize:'vertical', outline:'none', minHeight:90, display:'block', marginBottom:10 }} />
-            <select value={ntTag} onChange={e=>setNtTag(e.target.value as any)} style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Exo 2,sans-serif', fontSize:13, padding:'9px 12px', outline:'none', marginBottom:10 }}>
+            <textarea value={ntBody} onChange={e=>setNtBody(e.target.value)} placeholder="What's on your mind..." style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'9px 12px', resize:'vertical', outline:'none', minHeight:90, display:'block', marginBottom:10 }} />
+            <select value={ntTag} onChange={e=>setNtTag(e.target.value as any)} style={{ width:'100%', background:'var(--bg3)', border:'1px solid var(--border)', color:'var(--white)', fontFamily:'Rajdhani,sans-serif', fontSize:13, padding:'9px 12px', outline:'none', marginBottom:10 }}>
               <option value="new">NEW</option>
               <option value="discussion">DISCUSSION</option>
               <option value="hot">HOT</option>
