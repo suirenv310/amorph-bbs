@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     // Get messages between two users
     const { data, error } = await supabaseAdmin
       .from('direct_messages')
-      .select('id, content, read, created_at, sender:sender_id(id, username)')
+      .select('id, content, read, created_at, sender_id, sender:sender_id(id, username)')
       .or(
         `and(sender_id.eq.${session.id},receiver_id.eq.${withUserId}),` +
         `and(sender_id.eq.${withUserId},receiver_id.eq.${session.id})`
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabaseAdmin
     .from('direct_messages')
     .insert({ sender_id: session.id, receiver_id, content: content.trim() })
-    .select('id, content, read, created_at, sender:sender_id(id, username)')
+    .select('id, content, read, created_at, sender_id, sender:sender_id(id, username)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

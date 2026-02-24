@@ -11,7 +11,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabaseAdmin
     .from('messages')
-    .select('id, content, created_at, reply_to_id, reply_to_content, reply_to_author, author:author_id(id, username, avatar_url)')
+    .select('id, content, created_at, reply_to_id, reply_to_content, reply_to_author, author:author_id(id, username, avatar_url), author_profile:author_profile_id(id, display_name, avatar, color)')
     .eq('room_id', room_id)
     .eq('deleted', false)
     .order('created_at', { ascending: false })
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   const session = getSessionUser(req)
   if (!session) return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
 
-  const { room_id, content, reply_to_id } = await req.json()
+  const { room_id, content, reply_to_id, profile_id } = await req.json()
   if (!room_id || !content?.trim())
     return NextResponse.json({ error: 'Thiếu room_id hoặc nội dung' }, { status: 400 })
 
@@ -64,11 +64,12 @@ export async function POST(req: Request) {
       room_id,
       content:          content.trim(),
       author_id:        session.id,
+      author_profile_id: profile_id || null,
       reply_to_id:      reply_to_id || null,
       reply_to_content: reply_to_content,
       reply_to_author:  reply_to_author,
     })
-    .select('id, content, created_at, reply_to_id, reply_to_content, reply_to_author, author:author_id(id, username, avatar_url)')
+    .select('id, content, created_at, reply_to_id, reply_to_content, reply_to_author, author:author_id(id, username, avatar_url), author_profile:author_profile_id(id, display_name, avatar, color)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
